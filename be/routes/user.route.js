@@ -10,7 +10,7 @@ userRoute.use(apiLimiter)
 userRoute.get('/',index)
 userRoute.get('/me',me)
 userRoute.get('/:id',show)
-userRoute.put('/:id',edit)
+userRoute.put('/',edit)
 userRoute.delete('/:id',destroy)
 
 export {userRoute}

@@ -69,4 +69,6 @@ const redirectAndTrack = async(req,res) =>{
         return errorResponse(res, "coba lagi", {message: error.message})
     }
 }
+
+
 export {index,getByUser,redirectAndTrack}

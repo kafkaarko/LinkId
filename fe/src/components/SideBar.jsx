@@ -21,13 +21,16 @@ export default function Sidebar() {
         { label: "Home", to: "/" },
 
         ...(isAuthenticated
-            ? [{ label: "Profile", to: "/profile" }]
+            ? [
+                { label: "Profile", to: "/profile" },
+                { label: "Analistic", to: "/analistic"}
+            ]
             : [
                 { label: "Login", to: "/login" },
                 { label: "Register", to: "/register" }
             ])
     ];
-    
+
     const handleLogout = () => {
         logout();
         navigate("/login");
@@ -44,7 +47,8 @@ export default function Sidebar() {
                             {item.label}
                         </NavLink>
                     </li>
-                ))}
+                ))} 
+
 
             </ul>
 

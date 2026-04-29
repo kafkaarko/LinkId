@@ -1,7 +1,7 @@
 import {
-Routes,
-Route,
-Navigate
+    Routes,
+    Route,
+    Navigate
 } from "react-router-dom";
 
 import AppShell from "./components/AppShell";
@@ -13,55 +13,64 @@ import ProfilePage from "./pages/ProfilePage";
 
 import ProtectedRoute from "./pages/ProtectedPage";
 import GuestRoute from "./pages/GuestPage";
+import LinkAnalytics from "./pages/Analistic";
 
 
 
-export default function App(){
+export default function App() {
 
-return(
-<AppShell>
+    return (
+        <AppShell>
 
-<Routes>
+            <Routes>
 
-<Route
-path="/"
-element={<HomePage/>}
-/>
+                <Route
+                    path="/"
+                    element={<HomePage />}
+                />
 
-<Route
-path="/login"
-element={
-<GuestRoute>
-<LoginPage/>
-</GuestRoute>
-}
-/>
+                <Route
+                    path="/login"
+                    element={
+                        <GuestRoute>
+                            <LoginPage />
+                        </GuestRoute>
+                    }
+                />
 
-<Route
-path="/register"
-element={
-<GuestRoute>
-<RegisterPage/>
-</GuestRoute>
-}
-/>
+                <Route
+                    path="/register"
+                    element={
+                        <GuestRoute>
+                            <RegisterPage />
+                        </GuestRoute>
+                    }
+                />
 
-<Route
-path="/profile"
-element={
-<ProtectedRoute>
-<ProfilePage/>
-</ProtectedRoute>
-}
-/>
+                <Route
+                    path="/profile"
+                    element={
+                        <ProtectedRoute>
+                            <ProfilePage />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/analistic"
+                    element={
+                        <ProtectedRoute>
+                            <LinkAnalytics />
+                        </ProtectedRoute>
+                    }
+                />
 
-<Route
-path="*"
-element={<Navigate to="/" replace />}
-/>
+                <Route
+                    path="*"
+                    element={<Navigate to="/" replace />}
+                />
 
-</Routes>
+            </Routes>
 
-</AppShell>
-)
+        </AppShell>
+    )
 }
