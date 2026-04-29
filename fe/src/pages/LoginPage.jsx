@@ -24,6 +24,8 @@ export default function LoginPage() {
       if (!authLoading && isAuthenticated) {
          navigate("/profile");
       }
+      console.log(localStorage.getItem("token"))
+
    }, [authLoading, isAuthenticated, navigate]);
 
    const handleChange = (e) => {
@@ -40,7 +42,7 @@ export default function LoginPage() {
          setError("Email dan password wajib diisi");
          return;
       }
-
+      
       try {
          setLoading(true);
          setError("");

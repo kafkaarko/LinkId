@@ -28,37 +28,44 @@ const show = async(req,res) =>{
     }
 }
 
-const edit = async(req,res) =>{
-    const {name,email,password} = req.body
-    const {id} = req.user.id
-    const userID = Number(id)
+const edit = async (req, res) => {
+  const { name, email, password } = req.body;
+  const userID = Number(req.user.id);
 
-    try {
-        const userLama = await prisma.user.findUnique({
-            where:{
-                id:userID
-            }
-        })
-        if(!userLama) return errorResponse(res,"id tidak ditemukan")
-            let dataUpdate = {
+  try {
+    if (!userID) {
+      return errorResponse(res, "Unauthorized");
+    }
+
+    const userLama = await prisma.user.findUnique({
+      where: { id: userID },
+    });
+
+    if (!userLama) {
+      return errorResponse(res, "User tidak ditemukan");
+    }
+
+    let dataUpdate = {
       ...(name && { name }),
       ...(email && { email }),
+    };
+
+    if (password && password.trim() !== "") {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      dataUpdate.password = hashedPassword;
     }
-    if(password && password.trim() !== ""){
-        const hashedPassword = await bcrypt.hash(password,10)
-        dataUpdate.password = hashedPassword
-    }
+
     const userBaru = await prisma.user.update({
-        where:{
-            id:userID
-        },
-        data:dataUpdate
-    })
-    return successResponse(res,"Berhasil update data",userBaru)
-    } catch (error) {
-        return errorResponse(res,"coba lagi", {message:error.message})
-    }
-}
+      where: { id: userID },
+      data: dataUpdate,
+    });
+
+    return successResponse(res, "Berhasil update data", userBaru);
+  } catch (error) {
+    console.log(error);
+    return errorResponse(res, "coba lagi", { message: error.message });
+  }
+};
 
 const destroy = async(req,res) =>{
     const {id} = req.user.id
@@ -84,6 +91,7 @@ const me = async (req, res) => {
         id: true,
         name: true,
         email: true,
+        role: true,
         createdAt: true,
       },
     });

@@ -57,7 +57,7 @@ export default function RegisterPage() {
               name="name"
               value={form.name}
               onChange={handleChange}
-              placeholder="Winzzz"
+              placeholder="masukan nama anda"
               className="input h-14 w-full rounded-2xl border-white/10 bg-[#090909] text-white placeholder:text-white/25 focus:border-white/20 focus:outline-none"
             />
           </label>
@@ -69,7 +69,7 @@ export default function RegisterPage() {
               name="email"
               value={form.email}
               onChange={handleChange}
-              placeholder="kafffka122@gmail.com"
+              placeholder="...@gmail.com"
               className="input h-14 w-full rounded-2xl border-white/10 bg-[#090909] text-white placeholder:text-white/25 focus:border-white/20 focus:outline-none"
             />
           </label>
@@ -81,7 +81,7 @@ export default function RegisterPage() {
               name="password"
               value={form.password}
               onChange={handleChange}
-              placeholder="Minimal 8 karakter"
+              placeholder="Masukan password"
               className="input h-14 w-full rounded-2xl border-white/10 bg-[#090909] text-white placeholder:text-white/25 focus:border-white/20 focus:outline-none"
             />
           </label>

@@ -47,13 +47,14 @@ const register = async (req,res) =>{
             data:{
                 name,
                 email,
-                password:hashedPassword
+                password:hashedPassword,
             }
         })
         return successResponse(res, "register successfully", {
             id:user.id,
             name:user.name,
-            email:user.email
+            email:user.email,
+            role:user.role
         })
     } catch (error) {
         return errorResponse(res, "coba lagi", {message:error.message})
@@ -62,8 +63,8 @@ const register = async (req,res) =>{
 
 const logout = async(req,res) =>{
     res.clearCookie("token",{
-        ...cookieOptions(req),
-        maxAge: undefined
+        path: "/",
+        sameSite: "lax"
     })
     return successResponse(res, "logout successfully")
 }
