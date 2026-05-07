@@ -14,8 +14,9 @@ export function AuthProvider({ children }) {
       try {
         const res = await api.get("/user/me");
         setUser(res.data.data);
-      } catch {
-        setUser(null);
+      } catch(err) {
+        // setUser(null);
+        console.error("fetchMe error", err);
       } finally {
         setAuthLoading(false);
       }
@@ -40,19 +41,33 @@ export function AuthProvider({ children }) {
   };
 
   // 🔥 REGISTER
-  const register = async ({ name, email, password }) => {
+  const register = async ({ name, email, password, guestIdentifier }) => {
     try {
       const res = await api.post("/auth/register", {
         name,
         email,
         password,
+        guestIdentifier
       });
+
+      if(res.status === 200){
+        localStorage.removeItem('guest_id');
+      }
 
       return res.data.data;
     } catch (err) {
       throw err.response?.data || err;
     }
   };
+
+  const refreshUser = async () => {
+  try {
+    const res = await api.get("/user/me");
+    setUser(res.data.data);
+  } catch (err) {
+    console.error("Failed refresh user", err);
+  }
+};
 
   // 🔥 UPDATE PROFILE (API BASED)
   const updateProfile = async (partial) => {
@@ -80,6 +95,7 @@ export function AuthProvider({ children }) {
   const value = useMemo(
     () => ({
       user,
+      setUser,
       authLoading,
       isAuthenticated: !!user,
       login,
