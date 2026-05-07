@@ -12,27 +12,47 @@ datasource db {
   provider = "postgresql"
 }
 
-
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  name      String?
-  role      Role?     @default(USER)
-  links     Link[]   // Relasi One-to-Many ke Link
-  createdAt DateTime @default(now())
+  id                Int       @id @default(autoincrement())
+  email             String    @unique
+  password          String
+  name              String?
+  role              Role?     @default(USER)
+  subscriptionUntil DateTime?
+  links             Link[] // Relasi One-to-Many ke Link
+  domains           Domain[] // Relasi One-to-Many ke Domain
+  createdAt         DateTime  @default(now())
 }
 
 model Link {
-  id           Int      @id @default(autoincrement())
-  originalUrl  String
-  shortSlug    String   @unique
-  userId       Int?
-  user         User?     @relation(fields: [userId], references: [id])
+  id              Int       @id @default(autoincrement())
+  originalUrl     String
+  shortSlug       String    @unique
+  isCustom        Boolean   @default(false)
+  userId          Int?
+  user            User?     @relation(fields: [userId], references: [id])
   guestIdentifier String?
-  ipAddress    String?
-  clicks       Click[]  // Relasi One-to-Many ke Click
-  createdAt    DateTime @default(now())
+  ipAddress       String?
+  domainId        Int?
+  domain          Domain?   @relation(fields: [domainId], references: [id])
+  expiresAt       DateTime?
+  mode            MODE?     @default(PERSONAL)
+  clicks          Click[] // Relasi One-to-Many ke Click
+  createdAt       DateTime  @default(now())
+}
+
+model Domain {
+  id     Int    @id @default(autoincrement())
+  userId Int
+  host   String? @unique
+
+  verificationToken String?  @unique
+  isVerified        Boolean? @default(false)
+
+  createdAt DateTime @default(now())
+
+  user  User   @relation(fields: [userId], references: [id])
+  links Link[]
 }
 
 model Click {
@@ -45,8 +65,24 @@ model Click {
   clickedAt DateTime @default(now())
 }
 
+model LinkPreview {
+  id          Int      @id @default(autoincrement())
+  url         String   @unique
+  title       String?
+  description String?
+  image       String?
+  siteName    String?
+  createdAt   DateTime @default(now())
+}
+
 enum Role {
   USER
   SUPER_USER
   ADMIN
+}
+
+enum MODE {
+  PERSONAL
+  DPD
+  MPM
 }

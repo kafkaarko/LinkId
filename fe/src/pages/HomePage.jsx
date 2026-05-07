@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { usePreview } from "../hooks/usePreview";
+import PreviewCard from "../components/PreviewCard";
 
-// 🔥 validator
 const isValidUrl = (value) => {
   try {
     new URL(value);
@@ -10,264 +11,292 @@ const isValidUrl = (value) => {
   } catch {
     return false;
   }
+
 };
 
-
-
-function StatCard({ label, value, helper }) {
+function StatCard({ label, value, helper, accent = false }) {
   return (
-    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-      <p className="text-xs uppercase tracking-[0.22em] text-white/38">{label}</p>
-      <h3 className="mt-3 text-3xl font-semibold text-white">{value}</h3>
-      {helper && (
-        <p className="mt-2 text-sm leading-6 text-white/48">{helper}</p>
-      )}
+    <div
+      className={`rounded-2xl border p-4 md:p-5 transition ${accent
+        ? "border-indigo-500/20 bg-indigo-500/[0.06]"
+        : "border-white/[0.06] bg-white/[0.02]"
+        }`}
+    >
+      <p className="text-xs uppercase tracking-[0.18em] text-white/35">
+        {label}
+      </p>
+      <h3 className="mt-2 text-2xl md:text-3xl font-semibold text-white/90">
+        {value}
+      </h3>
+      {helper && <p className="mt-1.5 text-xs text-white/40">{helper}</p>}
     </div>
   );
 }
 
 export default function HomePage() {
+  const { user, setUser } = useAuth();
+
   const [text, setText] = useState("");
-  const [status, setStatus] = useState("Ready to cook link 🔥");
+  const [customSlug, setCustomSlug] = useState("");
+  const [status, setStatus] = useState("");
   const [links, setLinks] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [limitReached, setLimitReached] = useState(false);
-  const { user } = useAuth();
+
+  const isGuest = !user;
+
   const [currentPage, setCurrentPage] = useState(1);
+  const { preview, loading: previewLoading } = usePreview(text);
 
+  const itemsPerPage = 5;
+  const guestLimit = 5;
+  const guestCount = links.length;
+  const guestRemaining = Math.max(0, guestLimit - guestCount);
 
+  const paginatedLinks = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return links.slice(start, start + itemsPerPage);
+  }, [links, currentPage]);
 
-const itemsPerPage = 5;
+  const totalPages = Math.ceil(links.length / itemsPerPage);
 
-const paginatedLinks = useMemo(() => {
-  const start = (currentPage - 1) * itemsPerPage;
-  return links.slice(start, start + itemsPerPage);
-}, [links, currentPage]);
+  const usage = user?.usage;
 
-const totalPages = Math.ceil(links.length / itemsPerPage);
+  const customCount = usage?.customCount ?? 0;
+  const customLimit = usage?.customLimit;
+  const monthlyCount = usage?.monthlyCount ?? 0;
+  const monthlyLimit = usage?.monthlyLimit ?? 0;
 
-const isGuest = !user
+  const remainingCustom =
+    customLimit === null
+      ? "Unlimited"
+      : Math.max(0, customLimit - customCount);
 
   const getGuestId = () => {
     let id = localStorage.getItem("guest_id");
-
     if (!id) {
       id = crypto.randomUUID();
       localStorage.setItem("guest_id", id);
     }
-
     return id;
   };
 
-  const guestCount = links.length;
-const remaining = 5 - guestCount;
-// const limitReached = isGuest && guestCount >= 5;
-  // 🔥 stats
-  const stats = useMemo(() => {
-    const trimmedText = text.trim();
-    const words = trimmedText ? trimmedText.split(/\s+/).length : 0;
-    const lines = trimmedText ? trimmedText.split(/\n/).length : 0;
+  // const linkCopy = {window.location.origin}/{item.shortSlug}
 
-    return {
-      characters: text.length,
-      words,
-      lines,
-    };
-  }, [text]);
-
-  // 🔥 fetch links
   useEffect(() => {
     const fetchLinks = async () => {
       try {
         const res = await api.get("/short/all");
-        setLinks(res.data.data.links);
+        setLinks(res.data.data.links || []);
       } catch (err) {
         console.error(err);
       }
     };
+    const delay = setTimeout(() => {
+      if (text) fetchPreview();
+    }, 500);
 
     fetchLinks();
-  }, []);
+    return () => clearTimeout(delay);
+  }, [text]);
 
-  // 🔥 main handler
   const handleGenerate = async () => {
-    let url = text.trim();
+    const url = text.trim();
 
-    if (!url) {
-      setStatus("Masukin URL dulu bro, jangan kosong.");
-      return;
+    if (!url) return setStatus("Masukkan URL dulu.");
+    if (!isValidUrl(url)) return setStatus("URL tidak valid.");
+
+    // 🔥 HARD GUARD (FE level)
+    if (monthlyLimit && monthlyCount >= monthlyLimit) {
+      return setStatus("Limit bulanan tercapai.");
     }
 
-    if (!isValidUrl(url)) {
-      setStatus("Input lu bukan URL valid. Jangan ngaco 😑");
-      return;
+    if (customSlug && customLimit !== null && customCount >= customLimit) {
+      return setStatus("Limit custom slug tercapai.");
     }
 
     try {
       setLoading(true);
+      setStatus("");
 
-      const res = await api.post("/short/create-short-link", {
+      const payload = {
         originalUrl: url,
-        guestIdentifier: getGuestId(), // 🔥 ini kuncinya
-      });
+        guestIdentifier: getGuestId(),
+      };
 
+      if (customSlug.trim()) payload.customSlug = customSlug.trim();
+
+      const res = await api.post("/short/create-short-link", payload);
 
       const data = {
-  ...res.data.data.data, // newLink dari prisma
-  shortenedUrl: res.data.data.shortenedUrl,
-};
+        ...res.data.data.data,
+        shortenedUrl: res.data.data.shortenedUrl,
+      };
 
       setLinks((prev) => [data, ...prev]);
 
-      setStatus("Link berhasil dipendekin 🚀");
-      setText("");
-    } catch (err) {
-      const message =
-        err?.response?.data?.message || err?.message || "Gagal generate link.";
-
-      // 🔥 detect limit dari backend
-      if (message.toLowerCase().includes("limit")) {
-        setLimitReached(true);
-        setStatus("Limit guest 5 link udah habis. Login biar unlimited 😏");
-      } else {
-        setStatus(message);
+      // 🔥 sync usage (biar ga refetch)
+      if (user) {
+        setUser((prev) => ({
+          ...prev,
+          usage: {
+            ...prev.usage,
+            monthlyCount: prev.usage.monthlyCount + 1,
+            customCount: data.isCustom
+              ? prev.usage.customCount + 1
+              : prev.usage.customCount,
+          },
+        }));
       }
+
+      setStatus("Link berhasil dibuat ✓");
+      setText("");
+      setCustomSlug("");
+    } catch (err) {
+      const msg = err?.response?.data?.message || err.message;
+      setStatus(msg);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleClear = () => {
-    setText("");
-    setStatus("Textarea dibersihin.");
-  };
-
   const handleCopy = async (value) => {
     try {
       await navigator.clipboard.writeText(value);
-      setStatus("Link disalin ke clipboard.");
+      setStatus("Copied ✓");
     } catch {
       setStatus("Clipboard gagal.");
     }
   };
 
   return (
-    <section className="space-y-6">
-      {/* HERO */}
-      <div className="rounded-[32px] border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl md:p-8">
-        <h2 className="text-3xl font-semibold text-white md:text-5xl">
-          URL Shortener Workspace
+    <section className="space-y-5">
+      {/* HEADER */}
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-5 py-4">
+        <h2 className="text-xl font-semibold text-white/90">
+          URL Shortener
         </h2>
-        <p className="mt-3 text-sm text-white/58">
-          Tempel URL valid, otomatis disimpan ke akun lu.
-        </p>
-{/* {id="uix1"} */}
-{isGuest && (
-  <p className="text-xs text-white/40">
-    Guest: {remaining > 0
-      ? `Sisa ${remaining} link lagi`
-      : "Limit habis. Login buat unlimited 😏"}
-  </p>
-)}
+        {isGuest && (
+          <p className="mt-1 text-xs text-white/35">
+            Mode guest — maks 5 link.
+          </p>
+        )}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-        {/* INPUT PANEL */}
-        <div className="rounded-[32px] border border-white/10 bg-white/[0.03] shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-          <div className="border-b border-white/10 px-6 py-5">
-            <h3 className="text-xl text-white">Shorten your link</h3>
+      {/* STATS */}
+      <div className="grid grid-cols-2 gap-3">
+
+        {/* 🔥 CUSTOM SLUG / GUEST MODE */}
+        <StatCard
+          label="Custom Slug"
+          value={
+            isGuest
+              ? "Locked"
+              : `${customCount} / ${customLimit ?? "∞"}`
+          }
+          helper={
+            isGuest
+              ? "Login untuk unlock"
+              : typeof remainingCustom === "number"
+                ? `${remainingCustom} slot tersisa`
+                : remainingCustom
+          }
+          accent
+        />
+
+        {/* 🔥 USAGE */}
+        {isGuest ? (
+          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.05] p-4 md:p-5">
+            <p className="text-xs uppercase tracking-[0.18em] text-amber-500/60">
+              Guest Limit
+            </p>
+
+            <h3 className="mt-2 text-2xl md:text-3xl font-semibold text-white/90">
+              {guestCount} / {guestLimit}
+            </h3>
+
+            <p className="mt-1.5 text-xs text-amber-500/70">
+              {guestRemaining > 0
+                ? `${guestRemaining} link tersisa sebelum kena limit`
+                : "Limit habis, login sekarang 😈"}
+            </p>
           </div>
+        ) : (
+          <StatCard
+            label="Monthly Usage"
+            value={`${monthlyCount} / ${monthlyLimit}`}
+            helper="Reset tiap bulan"
+          />
+        )}
+      </div>
 
-          <div className="space-y-5 px-6 py-6">
-            <input
-              className="h-[50px] w-full rounded-[15px] border border-white/10 bg-[#090909] px-4 text-white focus:outline-none"
-              placeholder="https://example.com (wajib URL valid)"
-              value={text}
-              type="text"
-              onChange={(e) => setText(e.target.value)}
-            />
+      {/* MAIN */}
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
+        <div className="space-y-3">
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="https://example.com"
+            className="w-full rounded-xl bg-[#111] px-4 py-3 text-white"
+          />
+          <PreviewCard preview={preview} loading={previewLoading} />
 
-            <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={handleGenerate}
-                disabled={loading || limitReached}
-                className="btn btn-primary bg-white text-black disabled:opacity-40"
-              >
-                {loading ? "Generating..." : "Shorten Link"}
-              </button>
+          <input
+            value={customSlug}
+            disabled={!user}
+            onChange={(e) => setCustomSlug(e.target.value)}
+            placeholder="custom-slug"
+            className="w-full rounded-xl bg-[#111] px-4 py-3 text-white disabled:opacity-40"
+          />
 
-              <button onClick={handleClear} className="btn btn-ghost">
-                Clear
-              </button>
-            </div>
+          <button
+            onClick={handleGenerate}
+            disabled={loading}
+            className="w-full rounded-xl bg-white text-black py-3"
+          >
+            {loading ? "Loading..." : "Shorten"}
+          </button>
 
-            <div className="text-sm text-white/60">
-              <b>Status:</b> {status}
-            </div>
-
-            {/* RESULT */}
-            <div className="space-y-3">
-              {paginatedLinks.map((item, idx) => (
-                <div
-                  key={item.id}
-                  className="rounded-2xl border border-white/10 bg-[#090909] p-4"
-                >
-                  <p className="text-xs text-white/40 truncate">
-                    {item?.originalUrl ? item.originalUrl : "-"}
-                  </p>
-
-                  <div className="flex justify-between items-center mt-2">
-                    <a
-                      href={item?.shortenedUrl ? item.shortenedUrl : "#"}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-white underline"
-                    >
-                      {item?.shortenedUrl ? item.shortenedUrl : "-"}
-                    </a>
-
-                    <button
-                      onClick={() => handleCopy(item.shortenedUrl)}
-                      className="text-xs text-white/60 hover:text-white"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
-              ))}
-              <div className="flex justify-center items-center gap-2 mt-4">
-
-  <button
-    disabled={currentPage === 1}
-    onClick={() => setCurrentPage((p) => p - 1)}
-    className="btn btn-sm"
-  >
-    Prev
-  </button>
-
-  <span className="text-white text-sm">
-    Page {currentPage} / {totalPages || 1}
-  </span>
-
-  <button
-    disabled={currentPage === totalPages || totalPages === 0}
-    onClick={() => setCurrentPage((p) => p + 1)}
-    className="btn btn-sm"
-  >
-    Next
-  </button>
-
-</div>
-            </div>
-          </div>
+          {status && (
+            <p className="text-xs text-white/40">{status}</p>
+          )}
         </div>
 
-        {/* SIDEBAR */}
-        <aside className="space-y-4">
-          <StatCard label="Characters" value={stats.characters} />
-          <StatCard label="Words" value={stats.words} />
-          <StatCard label="Lines" value={stats.lines} />
-        </aside>
+        {/* LIST */}
+        <div className="mt-5 space-y-2">
+          {paginatedLinks.map((item) => {
+
+            const shortUrl = `${window.location.origin}/${item.shortSlug}`;
+
+            return (
+              <div
+                key={item.id}
+                className="flex justify-between bg-[#111] px-4 py-3 rounded-xl"
+              >
+                <div className="truncate">
+                  <p className="text-xs text-white/30">
+                    {item.originalUrl}
+                  </p>
+
+                  <a
+                    href={shortUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-indigo-400"
+                  >
+                    {shortUrl}
+                  </a>
+                </div>
+
+                <button
+                  onClick={() => handleCopy(shortUrl)}
+                  className="text-xs"
+                >
+                  Copy
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

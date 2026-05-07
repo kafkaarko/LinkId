@@ -1,74 +1,150 @@
 import { prisma } from "../lib/prisma.js";
 import { errorResponse, successResponse } from "../utils/response.util.js";
+// import {slugCache} from "../lib/slugCache.js";
+import { LRUCache as LRU } from "lru-cache";
+
+const slugCache = new LRU({
+  max: 1000,
+  ttl: 1000 * 60 * 10, // 10 menit
+});
 
 
 
-const index = async(req,res) => {
-    try {
-        const click = await prisma.click.findMany()
-        !click && errorResponse(res,"data tidak ditemukan")
-        return successResponse(res,"berhasil mengambil data",click)
-    } catch (error) {
-        console.error(error)
-        return errorResponse(res,"coba lagi", {message:error.message})
-    }
+
+const index = async (req, res) => {
+  try {
+    const click = await prisma.click.findMany()
+    !click && errorResponse(res, "data tidak ditemukan")
+    return successResponse(res, "berhasil mengambil data", click)
+  } catch (error) {
+    console.error(error)
+    return errorResponse(res, "coba lagi", { message: error.message })
+  }
 }
 
-const getByUser = async(req,res) => {
-    try {
-        const clicks = await prisma.click.findMany({
-            where: {
-                link: {
-                    userId: Number(req.user.id) // Cari klik yang link-nya milik si user ini
-                }
-            },
-            include: {
-                link: true // Supaya tahu klik ini buat link yang mana
-            }
-        })
-        
-        if (!clicks || clicks.length === 0) {
-            return errorResponse(res, "data tidak ditemukan")
+const getByUser = async (req, res) => {
+  try {
+    const clicks = await prisma.click.findMany({
+      where: {
+        link: {
+          userId: Number(req.user.id) // Cari klik yang link-nya milik si user ini
         }
-        
-        return successResponse(res, "berhasil mengambil data", clicks)
-    } catch (error) {
-        return errorResponse(res, "coba lagi", {message: error.message})
+      },
+      include: {
+        link: true // Supaya tahu klik ini buat link yang mana
+      }
+    })
+
+    if (!clicks || clicks.length === 0) {
+      return errorResponse(res, "data tidak ditemukan")
     }
-}
-const redirectAndTrack = async(req,res) =>{
-    try {
-        const {slug} = req.params
-        const link = await prisma.link.findUnique({
-            where: { shortSlug: slug }
-        })
 
-        // TAMBAHKAN RETURN DISINI
-        if (!link) {
-            return res.status(404).send("<h3>Link tidak ditemukan</h3>");
-        }
-
-        const ipAddres = req.headers['x-forwarded-for'] || req.socket.remoteAddress
-        const userAgent = req.headers['user-agent']
-        const referer = req.get('Referer') || "Direct (WhatsApp/Browser)";
-
-        // Catat klik (background process)
-        prisma.click.create({
-            data: {
-                linkId: link.id,
-                ipAddress: ipAddres,
-                userAgent: userAgent,
-                referer: referer
-            }
-        }).catch(err => console.error("gagal mencatat klik", err))
-
-        // Redirect user
-        return res.redirect(link.originalUrl)
-
-    } catch (error) {
-        return errorResponse(res, "coba lagi", {message: error.message})
-    }
+    return successResponse(res, "berhasil mengambil data", clicks)
+  } catch (error) {
+    return errorResponse(res, "coba lagi", { message: error.message })
+  }
 }
 
+const trackClickAsync = async (linkId, req) => {
+  try {
+    const ip =
+      req.headers["x-forwarded-for"]?.split(",")[0] ||
+      req.socket.remoteAddress;
 
-export {index,getByUser,redirectAndTrack}
+    const userAgent = req.headers["user-agent"] || "";
+
+    // 🔥 BOT FILTER
+    const botPatterns = [
+      "bot",
+      "crawl",
+      "spider",
+      "preview",
+      "facebook",
+      "whatsapp",
+      "telegram",
+      "discord",
+    ];
+
+    const isBot = botPatterns.some(p =>
+      userAgent.toLowerCase().includes(p)
+    );
+    if (isBot) return; // ❌ jangan redirect disini
+
+    // 🔥 prevent double hit
+    const existing = await prisma.click.findFirst({
+      where: {
+        linkId,
+        ipAddress: ip,
+        userAgent,
+        clickedAt: {
+          gte: new Date(Date.now() - 3000),
+        },
+      },
+    });
+
+    if (existing) return;
+
+    await prisma.click.create({
+      data: {
+        linkId,
+        ipAddress: ip,
+        userAgent,
+      },
+    });
+
+  } catch (err) {
+    console.error("TRACK ERROR:", err);
+  }
+};
+
+// 🔥 MAIN CONTROLLER
+const redirectAndTrack = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { preview } = req.query;
+
+    const host = req.get("host");
+
+    const link = await prisma.link.findFirst({
+      where: {
+        shortSlug: slug,
+        OR: [
+          { domain: { host } },
+          { domainId: null }
+        ]
+      },
+      include: {
+        domain: true
+      }
+    });
+
+    if (!link) {
+      return res.status(404).send("<h3>Link tidak ditemukan</h3>");
+    }
+
+    // 🔥 EXPIRED
+    if (link.expiresAt && new Date() > link.expiresAt) {
+      return res.status(410).send(`
+        <h2>Link Expired ⚰️</h2>
+        <p>Event sudah selesai bro.</p>
+      `);
+    }
+
+    // 🔥 PREVIEW MODE
+    if (preview === "true") {
+      return res.redirect(link.originalUrl);
+    }
+
+    // 🔥 TRACK ASYNC
+    trackClickAsync(link.id, req);
+
+    // 🔥 REDIRECT
+    return res.redirect(link.originalUrl);
+
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).send("Internal Server Error");
+  }
+};
+export { index, getByUser, redirectAndTrack, trackClickAsync }
