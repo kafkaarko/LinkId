@@ -26,7 +26,7 @@ export default function AppShell({ children }) {
         }}
       >
         {/* Mobile Top Bar */}
-        <div className="sticky top-0 z-20 border-b border-white/[0.06] bg-[#0a0a0a]/80 backdrop-blur-xl lg:hidden">
+        <div className="sticky top-0 z-20 border-b border-white/[0.06] bg-[#0a0a0a]/80  lg:hidden">
           <div className="flex items-center justify-between px-4 py-3">
             <label
               htmlFor="app-drawer"

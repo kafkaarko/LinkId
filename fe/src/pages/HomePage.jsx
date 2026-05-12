@@ -97,7 +97,7 @@ export default function HomePage() {
 
     fetchLinks();
     return () => clearTimeout(delay);
-  }, [text]);
+  }, []);
 
   const handleGenerate = async () => {
     const url = text.trim();
@@ -139,11 +139,13 @@ export default function HomePage() {
         setUser((prev) => ({
           ...prev,
           usage: {
-            ...prev.usage,
-            monthlyCount: prev.usage.monthlyCount + 1,
+            ...(prev?.usage || {}),
+            monthlyCount:
+              (prev?.usage?.monthlyCount || 0) + 1,
+
             customCount: data.isCustom
-              ? prev.usage.customCount + 1
-              : prev.usage.customCount,
+              ? (prev?.usage?.customCount || 0) + 1
+              : (prev?.usage?.customCount || 0),
           },
         }));
       }

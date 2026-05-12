@@ -1,6 +1,12 @@
 import { prisma } from "../lib/prisma.js";
 import { errorResponse, successResponse } from "../utils/response.util.js";
 import { trackClickAsync } from "../controllers/click.controller.js";
+import { LRUCache as LRU } from "lru-cache";
+
+const slugCache = new LRU({
+  max: 1000,
+  ttl: 1000 * 60 * 10, // 10 menit
+});
 
 
 export const resolveSlug = async (req, res) => {
@@ -20,8 +26,18 @@ export const resolveSlug = async (req, res) => {
       });
     }
 
-    // analytics async
+    // 🔥 expired check
+    if (link.expiresAt && new Date() > link.expiresAt) {
+      return res.status(410).json({
+        success: false,
+        message: "Link expired",
+      });
+    }
+
+    // 🔥 async analytics
+
     trackClickAsync(link.id, req);
+
 
     return res.json({
       success: true,

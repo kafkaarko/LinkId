@@ -46,7 +46,7 @@ const verifyToken = async (req, res, next) => {
 
     next();
   } catch (error) {
-    return errorResponse(res, error.message);
+    return errorResponse(res, error.message,"",401);
   }
 };
 

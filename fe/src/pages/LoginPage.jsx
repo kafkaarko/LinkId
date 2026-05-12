@@ -28,7 +28,7 @@ export default function LoginPage() {
       setLoading(true);
       setError("");
       await login(form);
-      navigate("/profile");
+      setInterval(navigate("/profile"),3000);
     } catch {
       setError("Email atau password salah.");
     } finally {

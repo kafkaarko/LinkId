@@ -39,6 +39,9 @@ model Link {
   mode            MODE?     @default(PERSONAL)
   clicks          Click[] // Relasi One-to-Many ke Click
   createdAt       DateTime  @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
 }
 
 model Domain {
@@ -63,6 +66,22 @@ model Click {
   userAgent String?
   referer   String?
   clickedAt DateTime @default(now())
+
+  @@index([linkId, clickedAt])
+
+}
+
+model UniqueVisitor {
+  id          Int      @id @default(autoincrement())
+
+  linkId      Int
+
+  fingerprint String
+  visitedDate String
+
+  createdAt   DateTime @default(now())
+
+  @@unique([fingerprint, visitedDate])
 }
 
 model LinkPreview {

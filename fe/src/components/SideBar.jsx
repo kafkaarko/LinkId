@@ -35,7 +35,7 @@ export default function Sidebar() {
       {/* BACKDROP */}
       <label
         htmlFor="app-drawer"
-        className="drawer-overlay !bg-black/60 backdrop-blur-sm"
+        className="drawer-overlay !bg-black/60 "
       />
 
       <aside className="w-72 bg-[#0d0d0d] min-h-full">

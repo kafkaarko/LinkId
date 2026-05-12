@@ -6,9 +6,8 @@ import { loginLimiter } from "../middlewares/rateLimiter.middleware.js";
 const authRoute = express.Router();
 
 
-authRoute.use(loginLimiter)
-authRoute.post('/login', login)
-authRoute.post('/register', register)
+authRoute.post('/login',loginLimiter, login)
+authRoute.post('/register',loginLimiter, register)
 authRoute.use(verifyToken)
 authRoute.post('/logout',logout)
 
