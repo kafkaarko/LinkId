@@ -3,7 +3,15 @@ import { errorResponse, successResponse } from "../utils/response.util.js";
 
 const index = async (req, res) => {
   try {
-    const users = await prisma.user.findMany()
+    const users = await prisma.user.findMany({
+  select: {
+    id: true,
+    name: true,
+    email: true,
+    role: true,
+    
+  }
+});
     // !users &&  errorResponse(res,"data belum di buat")
     if (users.length === 0) return errorResponse(res, "Data belum di buat")
     return successResponse(res, "berhasil mengabil data dari databse", users)

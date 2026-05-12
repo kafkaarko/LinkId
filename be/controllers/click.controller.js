@@ -1,13 +1,15 @@
+import { clickQueue } from "../lib/clickQueue.js";
 import { prisma } from "../lib/prisma.js";
+import { recentClicks } from "../lib/recentClicks.js";
 import { errorResponse, successResponse } from "../utils/response.util.js";
 // import {slugCache} from "../lib/slugCache.js";
 import { LRUCache as LRU } from "lru-cache";
+import crypto from "crypto";
 
 const slugCache = new LRU({
   max: 1000,
   ttl: 1000 * 60 * 10, // 10 menit
 });
-
 
 
 
@@ -27,13 +29,18 @@ const getByUser = async (req, res) => {
     const clicks = await prisma.click.findMany({
       where: {
         link: {
-          userId: Number(req.user.id) // Cari klik yang link-nya milik si user ini
+          userId: Number(req.user.id)
         }
       },
       include: {
-        link: true // Supaya tahu klik ini buat link yang mana
+        link: {
+          select: {
+            id: true,
+            shortSlug: true,
+          }
+        }
       }
-    })
+    });
 
     if (!clicks || clicks.length === 0) {
       return errorResponse(res, "data tidak ditemukan")
@@ -53,7 +60,6 @@ const trackClickAsync = async (linkId, req) => {
 
     const userAgent = req.headers["user-agent"] || "";
 
-    // 🔥 BOT FILTER
     const botPatterns = [
       "bot",
       "crawl",
@@ -65,35 +71,60 @@ const trackClickAsync = async (linkId, req) => {
       "discord",
     ];
 
-    const isBot = botPatterns.some(p =>
+    const isBot = botPatterns.some((p) =>
       userAgent.toLowerCase().includes(p)
     );
-    if (isBot) return; // ❌ jangan redirect disini
 
-    // 🔥 prevent double hit
-    const existing = await prisma.click.findFirst({
-      where: {
-        linkId,
-        ipAddress: ip,
-        userAgent,
-        clickedAt: {
-          gte: new Date(Date.now() - 3000),
+    if (isBot) return;
+
+    // 🔥 fingerprint
+    const today = new Date().toISOString().split("T")[0];
+
+    const rawFingerprint =
+      `${linkId}-${ip}-${userAgent}-${today}`;
+
+    const fingerprint = crypto
+      .createHash("sha256")
+      .update(rawFingerprint)
+      .digest("hex");
+
+    try {
+      await prisma.uniqueVisitor.create({
+        data: {
+          linkId,
+          fingerprint,
+          visitedDate: today,
         },
-      },
-    });
+      });
+    } catch (err) {
+      // 🔥 ignore duplicate unique visitor
+      if (err.code !== "P2002") {
+        console.error(err);
+      }
+    }
 
-    if (existing) return;
+    // 🔥 duplicate within 3 sec
+    if (recentClicks.has(fingerprint)) {
+      return;
+    }
 
-    await prisma.click.create({
-      data: {
-        linkId,
-        ipAddress: ip,
-        userAgent,
-      },
+    recentClicks.set(fingerprint, true);
+
+    setTimeout(() => {
+      recentClicks.delete(fingerprint);
+    }, 3000);
+
+    // 🔥 masuk queue
+    clickQueue.push({
+      linkId,
+      ipAddress: ip,
+      userAgent,
+      referer: req.headers.referer || null,
+      clickedAt: new Date(),
     });
 
   } catch (err) {
-    console.error("TRACK ERROR:", err);
+    console.error(err);
   }
 };
 

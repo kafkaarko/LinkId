@@ -1,0 +1,28 @@
+services:
+  backend:
+    build: ./be
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./be/.env
+    depends_on:
+      - db
+
+  frontend:
+    build: ./fe
+    ports:
+      - "5173:5173"
+    env_file:
+      - ./fe/.env
+    depends_on:
+      - backend
+
+  db:
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123
+      POSTGRES_DB: linkid
+    ports:
+      - "5432:5432"

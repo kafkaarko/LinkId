@@ -1,9 +1,14 @@
 import axios from "axios";
 import ogs from "open-graph-scraper";
 import pLimit from "p-limit";
+import { LRUCache } from "lru-cache";
 
 const limit = pLimit(2); // max 2 request parallel
-const cache = new Map(); // simple cache (upgrade ke redis nanti)
+
+const cache = new LRUCache({
+  max: 500,
+  ttl: 1000 * 60 * 30,
+});
 
 const isValidUrl = (url) => {
   try {
@@ -81,7 +86,7 @@ export const getLinkPreview = async (url) => {
       };
     }
   });
-
+  console.log("PREVIEW SCRAPING:", url);
   cache.set(url, result);
   return result;
 };

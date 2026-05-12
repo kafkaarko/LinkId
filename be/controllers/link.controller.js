@@ -12,8 +12,17 @@ const index = async (req, res) => {
       },
       orderBy: {
         createdAt: "desc"
+      },
+      select: {
+        id: true,
+        originalUrl: true,
+        shortSlug: true,
+        createdAt: true,
+        isCustom: true,
+        mode: true,
+        expiresAt: true,
       }
-    })
+    });
     !links && errorResponse(res, "data tidak ditemukan")
     const shortenedUrl = links.map(link => ({
       ...link,
@@ -116,15 +125,24 @@ const createShortLink = async (req, res) => {
     // =========================
     // 🔥 USER LIMIT (SaaS CORE)
     // =========================
-    if (userID) {
-      const monthlyCount = await prisma.link.count({
+    const [monthlyCount, customCount] = await Promise.all([
+      prisma.link.count({
         where: {
           userId: userID,
           createdAt: {
             gte: startOfMonth,
           },
         },
-      });
+      }),
+
+      prisma.link.count({
+        where: {
+          userId: userID,
+          isCustom: true,
+        },
+      }),
+    ]);
+    if (userID) {
 
       // 🔥 USER = 100 / bulan
       if (user.role === "USER" && monthlyCount >= 100) {
@@ -164,13 +182,6 @@ const createShortLink = async (req, res) => {
 
       // 🔥 USER (strict)
       if (user.role === "USER") {
-        const customCount = await prisma.link.count({
-          where: {
-            userId: userID,
-            isCustom: true,
-          },
-        });
-
         if (customCount >= 5) {
           return errorResponse(
             res,
@@ -207,19 +218,21 @@ const createShortLink = async (req, res) => {
           return errorResponse(res, "Guest butuh identifier.");
         }
 
-        const guestLinkCount = await prisma.link.count({
-          where: {
-            userId: null,
-            guestIdentifier,
-          },
-        });
+        const [guestLinkCount, ipLinkCount] = await Promise.all([
+          prisma.link.count({
+            where: {
+              userId: null,
+              guestIdentifier,
+            },
+          }),
 
-        const ipLinkCount = await prisma.link.count({
-          where: {
-            userId: null,
-            ipAddress,
-          },
-        });
+          prisma.link.count({
+            where: {
+              userId: null,
+              ipAddress,
+            },
+          }),
+        ]);
 
         if (guestLinkCount >= 5 || ipLinkCount >= 20) {
           return errorResponse(res, "Limit guest tercapai.");
@@ -278,105 +291,6 @@ const createShortLink = async (req, res) => {
   }
 };
 
-const getLinkAnalytics = async (req, res) => {
-  try {
-    const userID = Number(req.user.id);
-    const role = req.user.role;
-
-    // 🔥 TOTAL + UNIQUE
-    const totalClicks = await prisma.click.count({
-      where: { link: { userId: userID } }
-    });
-
-    const uniqueVisitors = await prisma.click.groupBy({
-      by: ["ipAddress"],
-      where: { link: { userId: userID } },
-      _count: true
-    });
-
-    if (role === "USER") {
-      return successResponse(res, "Basic analytics", {
-        totalClicks,
-        uniqueVisitors: uniqueVisitors.length,
-      });
-    }
-
-    // 🔥 DAILY TREND (7 hari)
-    const dailyStats = await prisma.$queryRaw`
-      SELECT 
-        DATE("clickedAt") as date,
-        COUNT(*)::int as count
-      FROM "Click"
-      WHERE "linkId" IN (
-        SELECT id FROM "Link" WHERE "userId" = ${userID}
-      )
-      AND "clickedAt" >= NOW() - INTERVAL '7 days'
-      GROUP BY date
-      ORDER BY date;
-    `;
-
-    // 🔥 TOP REFERRER
-    const referrerStats = await prisma.click.groupBy({
-      by: ["referer"],
-      where: {
-        link: { userId: userID }
-      },
-      _count: {
-        referer: true // 🔥 ini penting
-      },
-      orderBy: {
-        _count: {
-          referer: "desc" // 🔥 FIX
-        }
-      },
-      take: 5
-    });
-
-    // 🔥 TOP LINK
-    const topLinks = await prisma.click.groupBy({
-      by: ["linkId"],
-      where: {
-        link: { userId: userID }
-      },
-      _count: {
-        linkId: true
-      },
-      orderBy: {
-        _count: {
-          linkId: "desc"
-        }
-      },
-      take: 5
-    });
-
-    const linkIds = topLinks.map(l => l.linkId);
-
-    const links = await prisma.link.findMany({
-      where: { id: { in: linkIds } },
-      select: { id: true, shortSlug: true }
-    });
-
-    const topLinkStats = topLinks.map(item => {
-      const link = links.find(l => l.id === item.linkId);
-      return {
-        slug: link?.shortSlug,
-        clicks: item._count._all
-      };
-    });
-
-    return successResponse(res, "Full analytics", {
-      totalClicks,
-      uniqueVisitors: uniqueVisitors.length,
-      dailyStats,
-      referrerStats,
-      topLinkStats
-    });
-
-  } catch (err) {
-    console.error(err);
-    return errorResponse(res, "Analytics error", { message: err.message });
-  }
-};
 
 const updateLinkMode = async (req, res) => {
   try {
@@ -419,18 +333,18 @@ const updateLinkMode = async (req, res) => {
     // PERSONAL = null
 
     const updated = await prisma.link.update({
-  where: { id: link.id },
-  data: {
-    mode,
-    expiresAt,
-  },
-});
+      where: { id: link.id },
+      data: {
+        mode,
+        expiresAt,
+      },
+    });
 
-const check = await prisma.link.findUnique({
-  where: { id: link.id }
-});
+    const check = await prisma.link.findUnique({
+      where: { id: link.id }
+    });
 
-console.log(check);
+
 
     return successResponse(res, "Mode updated", updated);
 
@@ -452,10 +366,17 @@ const getGlobalAnalytics = async (req, res) => {
     });
 
     // unique visitors
-    const uniqueVisitors = await prisma.click.groupBy({
-      by: ["ipAddress"],
-      where: { link: { userId: userID } },
+        const link = await prisma.link.findFirst({
+      where: {
+        // shortSlug: slug,
+        userId: req.user.id,
+      },
     });
+    const uniqueVisitors = await prisma.$queryRaw`
+  SELECT COUNT(DISTINCT "ipAddress")::int as total
+  FROM "Click"
+  WHERE "linkId" = ${link.id}
+`;
 
     // daily trend
     const dailyStats = await prisma.$queryRaw`
@@ -533,7 +454,6 @@ const getGlobalAnalytics = async (req, res) => {
   }
 };
 
-
 // 🔥 PER LINK ANALYTICS
 const getLinkDetailAnalytics = async (req, res) => {
   try {
@@ -552,10 +472,11 @@ const getLinkDetailAnalytics = async (req, res) => {
       where: { linkId: link.id },
     });
 
-    const uniqueVisitors = await prisma.click.groupBy({
-      by: ["ipAddress"],
-      where: { linkId: link.id },
-    });
+    const uniqueVisitors = await prisma.$queryRaw`
+  SELECT COUNT(DISTINCT "ipAddress")::int as total
+  FROM "Click"
+  WHERE "linkId" = ${link.id}
+`;
 
     const dailyStats = await prisma.$queryRaw`
       SELECT 
@@ -573,7 +494,7 @@ const getLinkDetailAnalytics = async (req, res) => {
       uniqueVisitors: uniqueVisitors.length,
       dailyStats,
       mode: link.mode,
-expiresAt: link.expiresAt,
+      expiresAt: link.expiresAt,
     });
 
   } catch (err) {
@@ -582,4 +503,4 @@ expiresAt: link.expiresAt,
   }
 };
 
-export { index, createShortLink, getGlobalAnalytics,updateLinkMode, getLinkDetailAnalytics }
+export { index, createShortLink, getGlobalAnalytics, updateLinkMode, getLinkDetailAnalytics }
