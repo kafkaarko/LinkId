@@ -84,6 +84,21 @@ const shutdown = async () => {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-server.listen(PORT, () => {
-  console.log(`🚀 server running on port ${PORT}`);
-});
+const startServer = async () => {
+  try {
+    await prisma.$connect();
+
+    console.log("🟢 database connected");
+
+    server.listen(PORT, () => {
+      console.log(`🚀 server running on port ${PORT}`);
+    });
+
+  } catch (error) {
+    console.error("🔴 database failed:", error);
+
+    process.exit(1);
+  }
+};
+
+startServer();
