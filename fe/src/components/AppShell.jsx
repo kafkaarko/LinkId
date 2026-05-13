@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import Sidebar from './Sidebar';
+import Sidebar from './SideBar';
 import { Outlet } from "react-router-dom";
 
 export default function AppShell({ children }) {
