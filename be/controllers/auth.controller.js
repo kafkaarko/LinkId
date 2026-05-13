@@ -86,11 +86,20 @@ const register = async (req, res) => {
 };
 
 const logout = async (req, res) => {
-    res.clearCookie("token", {
-        path: "/",
-        sameSite: "lax"
-    })
-    return successResponse(res, "logout successfully")
+    try {
+        res.clearCookie("token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite:
+        process.env.NODE_ENV === "production"
+          ? "none"
+          : "lax",
+      path: "/",
+    });
+    return successResponse(res,"logout berhasil")
+    } catch (error) {
+        return errorResponse(res,"coba lagi",{message:error.message})
+    }
 }
 
 export { login, register, logout }
