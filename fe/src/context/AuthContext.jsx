@@ -74,7 +74,10 @@ export function AuthProvider({ children }) {
     try {
       const res = await api.put("/user", partial);
 
-      setUser(res.data.data);
+      setUser(prev => ({
+  ...prev,
+  ...res.data.data
+}))
       return res.data.data;
     } catch (err) {
       throw err.response?.data || err;
@@ -102,6 +105,7 @@ export function AuthProvider({ children }) {
       register,
       updateProfile,
       logout,
+      refreshUser
     }),
     [user, authLoading]
   );

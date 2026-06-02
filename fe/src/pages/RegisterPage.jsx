@@ -121,6 +121,8 @@ export default function RegisterPage() {
               <li className="flex gap-2"><span className="text-indigo-400/50">✓</span> Simpan link tanpa batas</li>
               <li className="flex gap-2"><span className="text-indigo-400/50">✓</span> Custom slug untuk link</li>
               <li className="flex gap-2"><span className="text-indigo-400/50">✓</span> Analytics (upgrade ke Super User)</li>
+              <li className="flex gap-2"><span className="text-indigo-400/50">✓</span> Fitur Bio page untuk kepentingan pribadi</li>
+
             </ul>
           </div>
 

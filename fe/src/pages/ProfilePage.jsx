@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
+import toast from "react-hot-toast";
 
 function formatJoinDate(date) {
   try {
@@ -41,13 +42,22 @@ export default function ProfilePage() {
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
 
-const itemsPerPage = 5;
-const totalPages = Math.ceil(links.length / itemsPerPage);
+  // const itemsPerPage = 5;
+  // const totalPages = Math.ceil(links.length / itemsPerPage);
 
-const paginatedLinks = links.slice(
-  (currentPage - 1) * itemsPerPage,
-  currentPage * itemsPerPage
-);
+  // const paginatedLinks = links.slice(
+  //   (currentPage - 1) * itemsPerPage,
+  //   currentPage * itemsPerPage
+  // );
+
+  const [pagination, setPagination] = useState({
+  totalData: 0,
+  totalPages: 1,
+  currentPage: 1,
+  perPage: 5,
+  hasNextPage: false,
+  hasPrevPage: false,
+});
 
   const PLANS = [
     {
@@ -80,10 +90,11 @@ const paginatedLinks = links.slice(
       password: "",
     });
 
-    const fetchLinks = async () => {
+    const fetchLinks = async (page = 1) => {
       try {
-        const res = await api.get("/short/all");
-        setLinks(res.data.data.links || []);
+    const res = await api.get(`/short/all?page=${page}&limit=5`);
+    setLinks(res.data.data.links || []);
+    setPagination(res.data.data.pagination);
       } catch (err) {
         console.error(err);
       } finally {
@@ -91,8 +102,8 @@ const paginatedLinks = links.slice(
       }
     };
 
-    fetchLinks();
-  }, [user]);
+    fetchLinks(currentPage);
+  }, [user,currentPage]);
 
   useEffect(() => {
     if (!showUpgradeModal) {
@@ -131,11 +142,16 @@ const paginatedLinks = links.slice(
         type: "success",
         message: "Profil berhasil diperbarui ✓",
       });
+
+
+      toast.success("Profil berhasil diperbarui");
     } catch (err) {
       setStatus({
         type: "error",
         message: err?.message || "Update gagal.",
       });
+      toast.error("Profil gagal diperbarui");
+
     }
   };
 
@@ -147,11 +163,14 @@ const paginatedLinks = links.slice(
         type: "success",
         message: "Link disalin ✓",
       });
+      toast.success("Link disalin");
     } catch {
       setStatus({
         type: "error",
         message: "Clipboard gagal.",
       });
+      toast.error("Link disalin");
+
     }
   };
 
@@ -167,7 +186,6 @@ const paginatedLinks = links.slice(
         type: "success",
         message: "Upgrade berhasil 🚀",
       });
-      console.log(refreshUser)
     } catch (err) {
       setStatus({
         type: "error",
@@ -229,8 +247,8 @@ const paginatedLinks = links.slice(
       <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 md:p-5">
         <h3 className="mb-3 text-sm font-medium text-white/70">Link Terakhir</h3>
 
-        {paginatedLinks.length ? (
-          paginatedLinks.map((link) => (
+        {links.length ? (
+          links.map((link) => (
             <div key={link.id} className="rounded-xl border border-white/[0.06] bg-[#111] p-3 mb-3">
 
               <p className="truncate text-xs text-white/30">
@@ -244,7 +262,7 @@ const paginatedLinks = links.slice(
                   rel="noreferrer"
                   className="truncate text-sm text-indigo-400/80 hover:text-indigo-400 transition"
                 >
-                  
+
                   {window.location.origin}/{link.shortSlug}
                 </a>
 
@@ -259,8 +277,8 @@ const paginatedLinks = links.slice(
               <Link
                 to={`/analistic/${link.shortSlug}`} // 🔥 pake slug, bukan full URL
                 className={`mt-2 block text-xs transition ${user?.role === "SUPER_USER"
-                    ? "text-indigo-400/60 hover:text-indigo-400"
-                    : "pointer-events-none text-white/20"
+                  ? "text-indigo-400/60 hover:text-indigo-400"
+                  : "pointer-events-none text-white/20"
                   }`}
               >
                 Lihat Analytics → {user?.role === "SUPER_USER" ? "" : "🔒"}
@@ -272,47 +290,29 @@ const paginatedLinks = links.slice(
           <p className="text-xs text-white/30">Belum ada link</p>
         )}
         {/* PAGINATION */}
-{totalPages > 1 && (
-  <div className="mt-4 flex items-center justify-center gap-2">
+        {pagination.totalPages > 1 && (
+    <div className="flex items-center justify-between pt-3">
+      <button
+        onClick={() => setCurrentPage((p) => p - 1)}
+        disabled={!pagination.hasPrevPage}
+        className="text-xs px-3 py-1.5 rounded-lg bg-white/[0.05] text-white/50 disabled:opacity-30"
+      >
+        ← Prev
+      </button>
 
-    <button
-      onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-      disabled={currentPage === 1}
-      className="rounded-lg border border-white/[0.06] px-3 py-1 text-xs text-white/50 disabled:opacity-30"
-    >
-      Prev
-    </button>
+      <span className="text-xs text-white/30">
+        {pagination.currentPage} / {pagination.totalPages}
+      </span>
 
-    {Array.from({ length: totalPages }).map((_, i) => {
-      const page = i + 1;
-
-      return (
-        <button
-          key={page}
-          onClick={() => setCurrentPage(page)}
-          className={`h-8 w-8 rounded-lg text-xs transition ${
-            currentPage === page
-              ? "bg-indigo-500 text-white"
-              : "border border-white/[0.06] text-white/50 hover:text-white"
-          }`}
-        >
-          {page}
-        </button>
-      );
-    })}
-
-    <button
-      onClick={() =>
-        setCurrentPage((p) => Math.min(p + 1, totalPages))
-      }
-      disabled={currentPage === totalPages}
-      className="rounded-lg border border-white/[0.06] px-3 py-1 text-xs text-white/50 disabled:opacity-30"
-    >
-      Next
-    </button>
-
-  </div>
-)}
+      <button
+        onClick={() => setCurrentPage((p) => p + 1)}
+        disabled={!pagination.hasNextPage}
+        className="text-xs px-3 py-1.5 rounded-lg bg-white/[0.05] text-white/50 disabled:opacity-30"
+      >
+        Next →
+      </button>
+    </div>
+  )}
       </div>
 
       {/* Edit Profile */}
@@ -393,8 +393,8 @@ const paginatedLinks = links.slice(
                     key={plan.id}
                     onClick={() => setSelectedPlan(plan.id)}
                     className={`cursor-pointer rounded-xl border p-4 transition ${isActive
-                        ? "border-indigo-500 bg-indigo-500/10"
-                        : "border-white/[0.06] hover:border-white/20"
+                      ? "border-indigo-500 bg-indigo-500/10"
+                      : "border-white/[0.06] hover:border-white/20"
                       }`}
                   >
                     {/* HEADER */}
@@ -449,13 +449,17 @@ const paginatedLinks = links.slice(
                     });
 
                     // 🔥 IMPORTANT: normalize response
-                    setUser(res.data.data); // 🔥 single source of truth
-
+                    setUser(prev => ({
+                      ...prev,
+                      ...res.data.data
+                    })) // 🔥 single source of truth
+                    await refreshUser();
 
                     setStatus({
                       type: "success",
                       message: "Upgrade berhasil 🚀",
                     });
+                    toast.success("Upgrade berhasil");
 
                     setShowUpgradeModal(false);
                     setSelectedPlan(null);

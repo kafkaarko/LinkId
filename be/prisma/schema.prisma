@@ -21,6 +21,7 @@ model User {
   subscriptionUntil DateTime?
   links             Link[] // Relasi One-to-Many ke Link
   domains           Domain[] // Relasi One-to-Many ke Domain
+  bioPages          BioPage[] // Relasi One-to-Many ke BioPage
   createdAt         DateTime  @default(now())
 }
 
@@ -37,6 +38,8 @@ model Link {
   domain          Domain?   @relation(fields: [domainId], references: [id])
   expiresAt       DateTime?
   mode            MODE?     @default(PERSONAL)
+  password        String?
+  isProtected     Boolean   @default(false)
   clicks          Click[] // Relasi One-to-Many ke Click
   createdAt       DateTime  @default(now())
 
@@ -67,6 +70,11 @@ model Click {
   referer   String?
   clickedAt DateTime @default(now())
 
+  device    String?  
+  browser   String? 
+  os        String?  
+  country   String? 
+
   @@index([linkId, clickedAt])
 
 }
@@ -92,6 +100,33 @@ model LinkPreview {
   image       String?
   siteName    String?
   createdAt   DateTime @default(now())
+}
+
+model BioPage {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  title     String
+  bio       String?
+  avatar    String?
+  theme     String   @default("dark")   // dark | light | midnight | aurora | sunset
+  userId    Int      @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  links     BioLink[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BioLink {
+  id        Int      @id @default(autoincrement())
+  bioPageId Int
+  bioPage   BioPage  @relation(fields: [bioPageId], references: [id], onDelete: Cascade)
+  label     String
+  url       String
+  icon      String?  // github | instagram | youtube | twitter | globe | dll
+  type      String   @default("LINK")  // LINK | PINNED | SOCIAL
+  order     Int      @default(0)
+  clicks    Int      @default(0)
+  createdAt DateTime @default(now())
 }
 
 enum Role {

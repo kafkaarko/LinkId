@@ -1,38 +1,62 @@
 import { prisma } from "../lib/prisma.js";
 import { errorResponse, successResponse } from "../utils/response.util.js";
 import { generateSlug } from "../utils/stringGen.util.js";
+import { getCache, setCache } from "../utils/analyticsCache.js";
+import bcrypt from "bcrypt";
 
 
 
 const index = async (req, res) => {
   try {
-    const links = await prisma.link.findMany({
-      where: {
-        userId: Number(req.user.id)
-      },
-      orderBy: {
-        createdAt: "desc"
-      },
-      select: {
-        id: true,
-        originalUrl: true,
-        shortSlug: true,
-        createdAt: true,
-        isCustom: true,
-        mode: true,
-        expiresAt: true,
-      }
-    });
-    !links && errorResponse(res, "data tidak ditemukan")
+    const page  = Math.max(1, Number(req.query.page)  || 1);
+    const limit = Math.max(1, Number(req.query.limit) || 5);
+    const skip  = (page - 1) * limit;
+
+    const [links, totalData] = await Promise.all([
+      prisma.link.findMany({
+        where: { userId: Number(req.user.id) },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          originalUrl: true,
+          shortSlug: true,
+          createdAt: true,
+          isCustom: true,
+          mode: true,
+          expiresAt: true,
+        },
+        skip,
+        take: limit,
+      }),
+      prisma.link.count({
+        where: { userId: Number(req.user.id) },
+      }),
+    ]);
+
+    const totalPages   = Math.ceil(totalData / limit);
+    const hasNextPage  = page < totalPages;
+    const hasPrevPage  = page > 1;
+
     const shortenedUrl = links.map(link => ({
       ...link,
-      shortenedUrl: `${req.protocol}://${req.get('host')}/${link.shortSlug}`
-    }))
-    return successResponse(res, "berhasil mengambil data", { links: shortenedUrl })
+      shortenedUrl: `${req.protocol}://${req.get("host")}/${link.shortSlug}`,
+    }));
+
+    return successResponse(res, "berhasil mengambil data", {
+      links: shortenedUrl,
+      pagination: {
+        totalData,
+        totalPages,
+        currentPage: page,
+        perPage: limit,
+        hasNextPage,
+        hasPrevPage,
+      },
+    });
   } catch (error) {
-    return errorResponse(res, "coba lagi", { message: error.message })
+    return errorResponse(res, "coba lagi", { message: error.message });
   }
-}
+};
 
 const createShortLink = async (req, res) => {
   try {
@@ -359,6 +383,15 @@ const updateLinkMode = async (req, res) => {
 const getGlobalAnalytics = async (req, res) => {
   try {
     const userID = Number(req.user.id);
+    const cacheKey = `analytics:global:${userID}`;
+
+    const cached = getCache(cacheKey);
+    if (cached) {
+      console.log(`[Cache HIT] ${cacheKey}`);
+      return successResponse(res, "ok", cached);
+    }
+
+    console.log(`[Cache MISS] ${cacheKey} — querying DB...`);
 
     // total clicks
     const totalClicks = await prisma.click.count({
@@ -366,7 +399,7 @@ const getGlobalAnalytics = async (req, res) => {
     });
 
     // unique visitors
-        const link = await prisma.link.findFirst({
+    const link = await prisma.link.findFirst({
       where: {
         // shortSlug: slug,
         userId: req.user.id,
@@ -440,13 +473,50 @@ const getGlobalAnalytics = async (req, res) => {
       };
     });
 
-    return successResponse(res, "ok", {
+    const [deviceStats, browserStats, osStats, countryStats] = await Promise.all([
+      prisma.click.groupBy({
+        by: ["device"],
+        where: { linkId: link.id },
+        _count: { device: true },
+        orderBy: { _count: { device: "desc" } },
+      }),
+      prisma.click.groupBy({
+        by: ["browser"],
+        where: { linkId: link.id },
+        _count: { browser: true },
+        orderBy: { _count: { browser: "desc" } },
+        take: 5,
+      }),
+      prisma.click.groupBy({
+        by: ["os"],
+        where: { linkId: link.id },
+        _count: { os: true },
+        orderBy: { _count: { os: "desc" } },
+        take: 5,
+      }),
+      prisma.click.groupBy({
+        by: ["country"],
+        where: { linkId: link.id },
+        _count: { country: true },
+        orderBy: { _count: { country: "desc" } },
+        take: 10,
+      }),
+    ]);
+    const result = {
       totalClicks,
-      uniqueVisitors: uniqueVisitors.length,
+      uniqueVisitors: uniqueVisitors[0]?.total ?? 0,
       dailyStats,
       referrerStats,
       topLinkStats,
-    });
+      deviceStats,
+      browserStats,
+      osStats,
+      countryStats,
+    };
+
+    setCache(cacheKey, result)
+    return successResponse(res, "ok", result);
+
 
   } catch (err) {
     console.error(err);
@@ -489,12 +559,47 @@ const getLinkDetailAnalytics = async (req, res) => {
       LIMIT 7
     `;
 
+
+    const [deviceStats, browserStats, osStats, countryStats] = await Promise.all([
+      prisma.click.groupBy({
+        by: ["device"],
+        where: { linkId: link.id },
+        _count: { device: true },
+        orderBy: { _count: { device: "desc" } },
+      }),
+      prisma.click.groupBy({
+        by: ["browser"],
+        where: { linkId: link.id },
+        _count: { browser: true },
+        orderBy: { _count: { browser: "desc" } },
+        take: 5,
+      }),
+      prisma.click.groupBy({
+        by: ["os"],
+        where: { linkId: link.id },
+        _count: { os: true },
+        orderBy: { _count: { os: "desc" } },
+        take: 5,
+      }),
+      prisma.click.groupBy({
+        by: ["country"],
+        where: { linkId: link.id },
+        _count: { country: true },
+        orderBy: { _count: { country: "desc" } },
+        take: 10,
+      }),
+    ]);
+
     return successResponse(res, "ok", {
       totalClicks,
       uniqueVisitors: uniqueVisitors.length,
       dailyStats,
       mode: link.mode,
       expiresAt: link.expiresAt,
+      deviceStats,
+      browserStats,
+      osStats,
+      countryStats,
     });
 
   } catch (err) {
@@ -503,4 +608,56 @@ const getLinkDetailAnalytics = async (req, res) => {
   }
 };
 
-export { index, createShortLink, getGlobalAnalytics, updateLinkMode, getLinkDetailAnalytics }
+
+const setPassword = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { password } = req.body;
+
+    const link = await prisma.link.findFirst({
+      where: { shortSlug: slug, userId: req.user.id },
+    });
+    if (!link) return errorResponse(res, "Link not found", null, 404);
+
+    if (!password) {
+      // Remove password
+      await prisma.link.update({
+        where: { shortSlug:slug },
+        data: { password: null, isProtected: false },
+      });
+      return successResponse(res, "Password removed", null);
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
+    await prisma.link.update({
+      where: { shortSlug:slug },
+      data: { password: hashed, isProtected: true },
+    });
+
+    return successResponse(res, "Password set", null);
+  } catch (err) {
+    console.log(err)
+    return errorResponse(res, "Server error", { message: err.message }, 500);
+  }
+};
+
+const verifyPassword = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { password } = req.body;
+
+    const link = await prisma.link.findUnique({ where: { shortSlug:slug } });
+    if (!link) return errorResponse(res, "Link not found", null, 404);
+    if (!link.isProtected) return successResponse(res, "Not protected", { url: link.originalUrl });
+
+    const match = await bcrypt.compare(password, link.password);
+    if (!match) return errorResponse(res, "Wrong password", null, 401);
+
+    return successResponse(res, "OK", { url: link.originalUrl });
+  } catch (err) {
+    console.log(err)
+    return errorResponse(res, "Server error", { message: err.message }, 500);
+  }
+};
+
+export { index, createShortLink, getGlobalAnalytics, updateLinkMode, getLinkDetailAnalytics, setPassword, verifyPassword }

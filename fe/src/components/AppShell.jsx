@@ -16,17 +16,19 @@ export default function AppShell({ children }) {
   }, [location.pathname]);
 
   return (
-    <div data-theme="black" className="drawer bg-[#0a0a0a] text-white lg:drawer-open">
+    <div className="drawer text-white lg:drawer-open" style={{ backgroundColor: '#0a0a0a' }}>
       <input id="app-drawer" type="checkbox" className="drawer-toggle" />
 
       {/* Main Content */}
-      <div className="drawer-content min-h-screen"
-        style={{
-          background: 'radial-gradient(ellipse 80% 40% at 50% -10%, rgba(99,102,241,0.08), transparent), #0a0a0a'
-        }}
-      >
+      <div
+  className="drawer-content min-h-screen"
+  style={{
+    backgroundColor: '#0a0a0a',
+    backgroundImage: 'radial-gradient(ellipse 120% 25% at 50% -5%, rgba(99,102,241,0.06), transparent 45%)',
+  }}
+>
         {/* Mobile Top Bar */}
-        <div className="sticky top-0 z-20 border-b border-white/[0.06] bg-[#0a0a0a]/80  lg:hidden">
+        <div className="sticky top-0 z-20 border-b border-white/[0.06] bg-[#0a0a0a]  lg:hidden">
           <div className="flex items-center justify-between px-4 py-3">
             <label
               htmlFor="app-drawer"

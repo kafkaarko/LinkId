@@ -26,6 +26,10 @@ export const resolveSlug = async (req, res) => {
       });
     }
 
+        if (link.isProtected) {
+      return res.json({ protected: true });
+    }
+
     // 🔥 expired check
     if (link.expiresAt && new Date() > link.expiresAt) {
       return res.status(410).json({
