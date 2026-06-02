@@ -5,6 +5,8 @@ import { errorResponse, successResponse } from "../utils/response.util.js";
 // import {slugCache} from "../lib/slugCache.js";
 import { LRUCache as LRU } from "lru-cache";
 import crypto from "crypto";
+import {UAParser} from "ua-parser-js";
+import geoip from "geoip-lite";
 
 const slugCache = new LRU({
   max: 1000,
@@ -77,6 +79,17 @@ const trackClickAsync = async (linkId, req) => {
 
     if (isBot) return;
 
+    const parser = new UAParser(userAgent);
+    const uaResult = parser.getResult();
+
+    const device = uaResult.device.type || "desktop"; // mobile | tablet | desktop
+    const browser = uaResult.browser.name || "Unknown";
+    const os = uaResult.os.name || "Unknown";
+
+
+    const geo = geoip.lookup(ip);
+    const country = geo?.country || "Unknown";
+
     // 🔥 fingerprint
     const today = new Date().toISOString().split("T")[0];
 
@@ -121,6 +134,10 @@ const trackClickAsync = async (linkId, req) => {
       userAgent,
       referer: req.headers.referer || null,
       clickedAt: new Date(),
+      device,
+      browser,
+      os,
+      country,
     });
 
   } catch (err) {

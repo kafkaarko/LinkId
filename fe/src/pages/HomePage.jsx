@@ -3,6 +3,10 @@ import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { usePreview } from "../hooks/usePreview";
 import PreviewCard from "../components/PreviewCard";
+import toast from "react-hot-toast";
+import EmptyState from "../components/EmptyState";
+import LinkSkeleton from "../components/LinkSkeleton";
+
 
 const isValidUrl = (value) => {
   try {
@@ -52,12 +56,20 @@ export default function HomePage() {
   const guestCount = links.length;
   const guestRemaining = Math.max(0, guestLimit - guestCount);
 
-  const paginatedLinks = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return links.slice(start, start + itemsPerPage);
-  }, [links, currentPage]);
+  // const paginatedLinks = useMemo(() => {
+  //   const start = (currentPage - 1) * itemsPerPage;
+  //   return links.slice(start, start + itemsPerPage);
+  // }, [links, currentPage]);
 
-  const totalPages = Math.ceil(links.length / itemsPerPage);
+  // const totalPages = Math.ceil(links.length / itemsPerPage);
+  const [pagination, setPagination] = useState({
+    totalData: 0,
+    totalPages: 1,
+    currentPage: 1,
+    perPage: 5,
+    hasNextPage: false,
+    hasPrevPage: false,
+  });
 
   const usage = user?.usage;
 
@@ -81,12 +93,12 @@ export default function HomePage() {
   };
 
   // const linkCopy = {window.location.origin}/{item.shortSlug}
-
-  useEffect(() => {
-    const fetchLinks = async () => {
+  const fetchLinks = async (page = 1) => {
       try {
-        const res = await api.get("/short/all");
+        const res = await api.get(`/short/all?page=${page}&limit=5`);
         setLinks(res.data.data.links || []);
+        setPagination(res.data.data.pagination);
+        // console.log(res.data.data.pagination);
       } catch (err) {
         console.error(err);
       }
@@ -94,10 +106,12 @@ export default function HomePage() {
     const delay = setTimeout(() => {
       if (text) fetchPreview();
     }, 500);
+  useEffect(() => {
+  
 
-    fetchLinks();
+    fetchLinks(currentPage);
     return () => clearTimeout(delay);
-  }, []);
+  }, [currentPage]);
 
   const handleGenerate = async () => {
     const url = text.trim();
@@ -150,9 +164,13 @@ export default function HomePage() {
         }));
       }
 
-      setStatus("Link berhasil dibuat ✓");
+      setCurrentPage(1);    // reset ke page 1
+      fetchLinks(1);        // re-fetch biar konsisten sama DB
+
+      // setStatus("Link berhasil dibuat ✓");
       setText("");
       setCustomSlug("");
+      toast.success("Link berhasil dibuat 🔥");
     } catch (err) {
       const msg = err?.response?.data?.message || err.message;
       setStatus(msg);
@@ -164,9 +182,12 @@ export default function HomePage() {
   const handleCopy = async (value) => {
     try {
       await navigator.clipboard.writeText(value);
-      setStatus("Copied ✓");
+      // setStatus("Copied");
+      toast.success("Copied ✓");
     } catch {
-      setStatus("Clipboard gagal.");
+      // setStatus("Clipboard gagal.");
+      toast.error("Clipboard gagal.");
+
     }
   };
 
@@ -218,8 +239,10 @@ export default function HomePage() {
 
             <p className="mt-1.5 text-xs text-amber-500/70">
               {guestRemaining > 0
-                ? `${guestRemaining} link tersisa sebelum kena limit`
-                : "Limit habis, login sekarang 😈"}
+                ? (`${guestRemaining} link tersisa sebelum kena limit`)
+
+                : ("Limit habis, login sekarang 😈")
+              }
             </p>
           </div>
         ) : (
@@ -255,7 +278,7 @@ export default function HomePage() {
             disabled={loading}
             className="w-full rounded-xl bg-white text-black py-3"
           >
-            {loading ? "Loading..." : "Shorten"}
+            {loading ? (<span className="loading loading-spinner loading-sm"></span>) : "Shorten"}
           </button>
 
           {status && (
@@ -264,41 +287,52 @@ export default function HomePage() {
         </div>
 
         {/* LIST */}
-        <div className="mt-5 space-y-2">
-          {paginatedLinks.map((item) => {
-
-            const shortUrl = `${window.location.origin}/${item.shortSlug}`;
-
-            return (
-              <div
-                key={item.id}
-                className="flex justify-between bg-[#111] px-4 py-3 rounded-xl"
-              >
-                <div className="truncate">
-                  <p className="text-xs text-white/30">
-                    {item.originalUrl}
-                  </p>
-
-                  <a
-                    href={shortUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-indigo-400"
-                  >
-                    {shortUrl}
-                  </a>
-                </div>
-
-                <button
-                  onClick={() => handleCopy(shortUrl)}
-                  className="text-xs"
-                >
-                  Copy
-                </button>
-              </div>
-            );
-          })}
+        {/* Render list — ganti paginatedLinks jadi links biasa */}
+<div className="mt-5 space-y-2">
+  {links.map((item) => {
+    const shortUrl = `${window.location.origin}/${item.shortSlug}`;
+    return (
+      <div key={item.id} className="flex justify-between bg-[#111] px-4 py-3 rounded-xl">
+        <div className="truncate">
+          <p className="text-xs text-white/30">{item.originalUrl}</p>
+          <a href={shortUrl} target="_blank" rel="noreferrer" className="text-indigo-400">
+            {shortUrl}
+          </a>
         </div>
+        <button onClick={() => handleCopy(shortUrl)} className="text-xs">Copy</button>
+      </div>
+    );
+  })}
+
+  {links.length === 0 && (
+    <EmptyState title="Belum ada link" desc="Bikin shortlink pertama 🔥" />
+  )}
+
+  {/* Pagination Controls */}
+  {pagination.totalPages > 1 && (
+    <div className="flex items-center justify-between pt-3">
+      <button
+        onClick={() => setCurrentPage((p) => p - 1)}
+        disabled={!pagination.hasPrevPage}
+        className="text-xs px-3 py-1.5 rounded-lg bg-white/[0.05] text-white/50 disabled:opacity-30"
+      >
+        ← Prev
+      </button>
+
+      <span className="text-xs text-white/30">
+        {pagination.currentPage} / {pagination.totalPages}
+      </span>
+
+      <button
+        onClick={() => setCurrentPage((p) => p + 1)}
+        disabled={!pagination.hasNextPage}
+        className="text-xs px-3 py-1.5 rounded-lg bg-white/[0.05] text-white/50 disabled:opacity-30"
+      >
+        Next →
+      </button>
+    </div>
+  )}
+</div>
       </div>
     </section>
   );

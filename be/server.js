@@ -19,6 +19,9 @@ import { resolveSlug } from "./controllers/redirect.controller.js";
 import { generateQR } from "./controllers/qr.controller.js";
 
 import { flushClicks } from "./workers/click.worker.js";
+import { qrRoute } from "./routes/qr.route.js";
+import { bioRouter } from "./routes/bio.route.js";
+import { exportRouter } from "./routes/export.route.js";
 
 dotenv.config();
 
@@ -49,8 +52,10 @@ server.use("/user", userRoute);
 server.use("/short", linkRoute);
 server.use("/click", clickRoute);
 server.use("/preview", previewRoute);
+server.use("/qr",qrRoute);
+server.use("/bio",bioRouter);
+server.use("/export",exportRouter)
 
-server.get("/qr", generateQR);
 
 server.get("/api/resolve/:slug", redirectAndTrack);
 server.get("/:slug", resolveSlug);
