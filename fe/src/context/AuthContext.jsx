@@ -36,7 +36,7 @@ export function AuthProvider({ children }) {
       setUser(me.data.data);
       return me.data.data;
     } catch (err) {
-      throw err.response?.data || err;
+      throw err
     }
   };
 

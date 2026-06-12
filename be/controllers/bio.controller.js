@@ -1,5 +1,39 @@
 import {prisma} from "../lib/prisma.js";
 import { errorResponse, successResponse } from "../utils/response.util.js";
+import fs from "fs";
+import path from "path";
+
+
+const uploadAvatar = async (req, res) => {
+  try {
+    if (!req.file) return errorResponse(res, "No file uploaded", null, 400);
+
+    // Hapus avatar lama kalau ada
+    const existing = await prisma.bioPage.findUnique({
+      where: { userId: req.user.id },
+      select: { avatar: true },
+    });
+
+    if (existing?.avatar) {
+      const oldPath = path.join("uploads/avatars", path.basename(existing.avatar));
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    }
+
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+
+    const page = await prisma.bioPage.upsert({
+      where: { userId: req.user.id },
+      update: { avatar: avatarUrl },
+      create: { avatar: avatarUrl, userId: req.user.id, title: "", username: `user_${req.user.id}` },
+    });
+
+    return successResponse(res, "Avatar uploaded", { avatar: page.avatar });
+  } catch (err) {
+    console.log(err)
+    return errorResponse(res, "Server error", { message: err.message }, 500);
+  }
+};
+
 
 // GET public bio page
  const getBioPage = async (req, res) => {
@@ -148,4 +182,4 @@ const updateBioPage = async (req, res) => {
   }
 };
 
-export {getBioPage, getMyBioPage, createBioPage, updateBioPage, addLink, updateLink, deleteLink, reorderLinks, trackLinkClick}
+export {getBioPage, getMyBioPage, createBioPage, updateBioPage, addLink, updateLink, deleteLink, reorderLinks, trackLinkClick, uploadAvatar}

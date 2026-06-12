@@ -9,8 +9,10 @@ import {
   reorderLinks,
   trackLinkClick,
   getMyBioPage,
+  uploadAvatar,
 } from "../controllers/bio.controller.js";
 import { verifyToken } from "../middlewares/verif.middleware.js";
+import { uploadMiddleware } from "../middlewares/upload.middleware.js";
 
 
 const bioRouter = express.Router();
@@ -19,6 +21,7 @@ const bioRouter = express.Router();
 bioRouter.post("/", verifyToken, createBioPage);
 bioRouter.get("/me", verifyToken, getMyBioPage);
 bioRouter.patch("/me", verifyToken, updateBioPage);
+bioRouter.post("/me/avatar", verifyToken, uploadMiddleware.single("avatar"), uploadAvatar)
 bioRouter.post("/me/links", verifyToken, addLink);
 bioRouter.patch("/me/links/:linkId", verifyToken, updateLink);
 bioRouter.delete("/me/links/:linkId", verifyToken, deleteLink);

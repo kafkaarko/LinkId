@@ -70,7 +70,7 @@ const register = async (req, res) => {
                 }
             });
 
-            console.log(`Guest ${guestIdentifier} di-bind ke user ${user.email} dengan `);
+            console.log(`Guest ${guestIdentifier} di-bind ke user ${user.email}  `);
         }
 
         return successResponse(res, "register successfully", {
