@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { api } from "../lib/api";
+import { api, BASE_URL } from "../lib/api";
 import { LinkTypeIcon } from "../components/bio/LinkTypeIcon";
 import { THEMES } from "../components/bio/ThemePicker";
 
@@ -48,7 +48,7 @@ export default function BioPage() {
         {/* Avatar + Info */}
         <div className="flex flex-col items-center gap-3 text-center">
           {bio.avatar ? (
-            <img src={bio.avatar} className="w-20 h-20 rounded-full object-cover ring-2 ring-white/10" />
+            <img src={`${BASE_URL}${bio.avatar}`} className="w-20 h-20 rounded-full object-cover ring-2 ring-white/10" />
           ) : (
             <div className="w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold"
               style={{ background: theme.accent + "22", color: theme.accent }}>

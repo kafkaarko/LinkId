@@ -22,6 +22,7 @@ import { flushClicks } from "./workers/click.worker.js";
 import { qrRoute } from "./routes/qr.route.js";
 import { bioRouter } from "./routes/bio.route.js";
 import { exportRouter } from "./routes/export.route.js";
+import { safetyRouter } from "./routes/safety.route.js";
 
 dotenv.config();
 
@@ -31,7 +32,9 @@ const PORT = process.env.PORT || 3000;
 
 server.set("trust proxy", 1);
 
-server.use(helmet());
+server.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin"},
+}));
 server.use(compression());
 
 server.use(express.json());
@@ -46,6 +49,7 @@ server.use(
 );
 
 server.use(express.static("dist"));
+server.use("/uploads",express.static("uploads"))
 
 server.use("/auth", authRoute);
 server.use("/user", userRoute);
@@ -55,7 +59,7 @@ server.use("/preview", previewRoute);
 server.use("/qr",qrRoute);
 server.use("/bio",bioRouter);
 server.use("/export",exportRouter)
-
+server.use('/safety', safetyRouter)
 
 server.get("/api/resolve/:slug", redirectAndTrack);
 server.get("/:slug", resolveSlug);

@@ -9,7 +9,18 @@ if (!API_URL) {
   );
 }
 
+export const BASE_URL = API_URL
+
 export const api = axios.create({
   baseURL: API_URL,
   withCredentials: true,
 });
+
+
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    return Promise.reject(error); // ← penting, jangan di-swallow
+  }
+);

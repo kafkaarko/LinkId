@@ -9,6 +9,8 @@ export default function LoginPage() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [retryAt, setRetryAt] = useState(null);
+  const [countdown, setCountdown] = useState("");
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) navigate("/profile");
@@ -17,6 +19,27 @@ export default function LoginPage() {
   const handleChange = (e) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
+
+  useEffect(() => {
+    if (!retryAt) return;
+
+    const tick = () => {
+      const diff = retryAt - Date.now();
+      if (diff <= 0) {
+        setCountdown("");
+        setRetryAt(null);
+        setError("");
+        return;
+      }
+      const m = Math.floor(diff / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setCountdown(`${m}:${s.toString().padStart(2, "0")}`);
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [retryAt]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,9 +51,15 @@ export default function LoginPage() {
       setLoading(true);
       setError("");
       await login(form);
-      setInterval(navigate("/profile"),3000);
-    } catch {
-      setError("Email atau password salah.");
+      navigate("/profile");
+    } catch (err) {
+      if (err.response?.status === 429) {
+        const resetAt = err.response.data?.resetAt;
+        if (resetAt) setRetryAt(resetAt);
+        setError("Terlalu banyak percobaan.");
+      } else {
+        setError("Email atau password salah.");
+      }
     } finally {
       setLoading(false);
     }
@@ -87,13 +116,18 @@ export default function LoginPage() {
             {error && (
               <div className="rounded-xl border border-red-500/15 bg-red-500/[0.06] px-4 py-3 text-xs text-red-400/80">
                 {error}
+                {countdown && (
+                  <span className="block mt-1 text-red-300/60">
+                    Coba lagi dalam <span className="font-mono font-semibold">{countdown}</span>
+                  </span>
+                )}
               </div>
             )}
 
             <button
               onClick={handleSubmit}
-              type=""
-              disabled={loading}
+              type="button"
+              disabled={countdown ? true : loading}
               className="mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-white/90 py-3 text-sm font-medium text-black transition hover:bg-white disabled:opacity-50"
             >
               {loading ? (
@@ -103,7 +137,7 @@ export default function LoginPage() {
                   </svg>
                   Masuk...
                 </>
-              ) : "Masuk"} 
+              ) : "Masuk"}
             </button>
           </div>
 
