@@ -222,7 +222,7 @@ useEffect(() => {
 
       {/* Preview link */}
       {bio?.username && (
-        <a href={`/u/${bio.username}`} target="_blank" rel="noreferrer"
+        <a href={`${window.location.origin}/u/${bio.username}`} target="_blank" rel="noreferrer"
           className="block text-center text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
           Preview bio page → {bio.username}
         </a>
